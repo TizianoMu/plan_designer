@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ReactFlow, Background, Controls, MiniMap,
+  ReactFlow, Background, BackgroundVariant, Controls, MiniMap,
   useNodesState, useEdgesState,
   Node, Edge,
 } from '@xyflow/react';
@@ -8,7 +8,7 @@ import '@xyflow/react/dist/style.css';
 
 import { useStore } from '../../store';
 import { api } from '../../utils/api';
-import { entitiesToNodes, relationsToEdges, notesToNodes } from '../../utils/helpers';
+import { entitiesToNodes, relationsToEdges, notesToNodes, genId } from '../../utils/helpers';
 import type { Entity, RelationType, StickyNote } from '../../types';
 
 import { EntityNode } from './nodes/EntityNode';
@@ -22,8 +22,9 @@ import { StickyNoteDialog } from '../dialogs/StickyNoteDialog';
 
 const nodeTypes = { entityNode: EntityNode, stickyNode: StickyNode };
 
-interface CopiedEntity {
+interface ClipboardData {
   entities: Entity[];
+  notes: StickyNote[];
   isCut: boolean;
 }
 
@@ -34,8 +35,8 @@ interface CanvasContextMenuState {
 
 export function Canvas() {
   const {
-    plan, project, activeModule,
-    deleteEntity, updateEntityPosition, deleteRelation,
+    plan, project, activeModule, setPlan,
+    deleteEntity, updateEntityPosition, deleteRelation, 
     contextMenu, setContextMenu,
     pendingRelation, setPendingRelation,
     isDirty, markClean,
@@ -48,7 +49,39 @@ export function Canvas() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const [saving, setSaving] = useState(false);
-  const [clipboard, setClipboard] = useState<CopiedEntity | null>(null);
+
+  // ── Undo/Redo State ────────────────────────────────────────────────────────
+  const [past, setPast] = useState<any[]>([]);
+  const [future, setFuture] = useState<any[]>([]);
+
+  const takeSnapshot = useCallback(() => {
+    if (!plan) return;
+    // Salviamo una copia profonda dello stato attuale prima della modifica
+    setPast((prev) => [JSON.parse(JSON.stringify(plan)), ...prev].slice(0, 50));
+    setFuture([]); // Ogni nuova azione pulisce il futuro
+  }, [plan]);
+
+  const undo = useCallback(() => {
+    if (past.length === 0 || !plan) return;
+    const previous = past[0];
+    const newPast = past.slice(1);
+    setFuture((prev) => [JSON.parse(JSON.stringify(plan)), ...prev]);
+    setPast(newPast);
+    setPlan(previous);
+  }, [past, plan, setPlan]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0 || !plan) return;
+    const next = future[0];
+    const newFuture = future.slice(1);
+    setPast((prev) => [JSON.parse(JSON.stringify(plan)), ...prev]);
+    setFuture(newFuture);
+    setPlan(next);
+  }, [future, plan, setPlan]);
+
+  // ───────────────────────────────────────────────────────────────────────────
+
+  const [clipboard, setClipboard] = useState<ClipboardData | null>(null);
   const [canvasContextMenu, setCanvasContextMenu] = useState<CanvasContextMenuState | null>(null);
 
   // Entity dialog
@@ -69,6 +102,11 @@ export function Canvas() {
   const [noteContextMenu, setNoteContextMenu] = useState<{
     noteId: string; x: number; y: number;
   } | null>(null);
+
+  // ── Snap to Grid State ─────────────────────────────────────────────────────
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [gridColor, setGridColor] = useState('#94a3b8');
+  const [gridGap, setGridGap] = useState(20);
 
   // ── Sync plan → React Flow ──────────────────────────────────────────────────
   useEffect(() => {
@@ -115,13 +153,17 @@ export function Canvas() {
   }, [plan]);
 
   // ── Node drag ───────────────────────────────────────────────────────────────
-  const onNodeDragStop = useCallback((_e: React.MouseEvent, node: Node) => {
-    if (node.type === 'stickyNode') {
-      updateNotePosition(node.id, node.position.x, node.position.y);
-    } else {
-      updateEntityPosition(node.id, node.position.x, node.position.y);
-    }
-  }, [updateEntityPosition, updateNotePosition]);
+  const onNodeDragStop = useCallback((_e: React.MouseEvent, draggedNode: Node) => {
+    takeSnapshot();
+    // Quando si trascina una selezione multipla, React Flow aggiorna le posizioni di tutti i nodi selezionati.
+    // Dobbiamo iterare su tutti i nodi selezionati per aggiornare il nostro store.
+    nodes.forEach((node) => {
+      if (node.selected) {
+        if (node.type === 'stickyNode') updateNotePosition(node.id, node.position.x, node.position.y);
+        else updateEntityPosition(node.id, node.position.x, node.position.y);
+      }
+    });
+  }, [nodes, updateEntityPosition, updateNotePosition, takeSnapshot]);
 
   // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -137,7 +179,104 @@ export function Canvas() {
     }
   };
 
-  // ── Context menu handlers ───────────────────────────────────────────────────
+  // ── Clipboard & Context menu handlers ───────────────────────────────────────
+  const handleCopy = useCallback(() => {
+    if (!plan) return;
+    const entitiesToCopy: Entity[] = [];
+    const notesToCopy: StickyNote[] = [];
+    const selectedNodes = nodes.filter(n => n.selected);
+
+    if (selectedNodes.length > 0) {
+      selectedNodes.forEach((node) => {
+        if (node.type === 'entityNode') {
+          const entity = plan.entities.find((e) => e.id === node.id);
+          if (entity) entitiesToCopy.push({ ...entity });
+        } else if (node.type === 'stickyNode') {
+          const note = plan.notes?.find((n) => n.id === node.id);
+          if (note) notesToCopy.push({ ...note });
+        }
+      });
+    } else if (contextMenu) {
+      const entity = plan.entities.find((e) => e.id === contextMenu.entityId);
+      if (entity) entitiesToCopy.push({ ...entity });
+    } else if (noteContextMenu) {
+      const note = plan.notes?.find(n => n.id === noteContextMenu.noteId);
+      if (note) notesToCopy.push({ ...note });
+    }
+
+    if (entitiesToCopy.length > 0 || notesToCopy.length > 0) {
+      setClipboard({ entities: entitiesToCopy, notes: notesToCopy, isCut: false });
+    }
+  }, [plan, nodes, contextMenu, noteContextMenu]);
+
+  const handleCut = useCallback(() => {
+    if (!plan) return;
+    takeSnapshot();
+    const entitiesToCut: Entity[] = [];
+    const notesToCut: StickyNote[] = [];
+    const selectedNodes = nodes.filter(n => n.selected);
+
+    if (selectedNodes.length > 0) {
+      selectedNodes.forEach((node) => {
+        if (node.type === 'entityNode') {
+          const entity = plan.entities.find((e) => e.id === node.id);
+          if (entity) entitiesToCut.push({ ...entity });
+        } else if (node.type === 'stickyNode') {
+          const note = plan.notes?.find((n) => n.id === node.id);
+          if (note) notesToCut.push({ ...note });
+        }
+      });
+    } else if (contextMenu) {
+      const entity = plan.entities.find((e) => e.id === contextMenu.entityId);
+      if (entity) entitiesToCut.push({ ...entity });
+    } else if (noteContextMenu) {
+      const note = plan.notes?.find(n => n.id === noteContextMenu.noteId);
+      if (note) notesToCut.push({ ...note });
+    }
+
+    if (entitiesToCut.length > 0 || notesToCut.length > 0) {
+      setClipboard({ entities: entitiesToCut, notes: notesToCut, isCut: true });
+    }
+  }, [plan, nodes, contextMenu, noteContextMenu]);
+
+  const handlePaste = useCallback((pastePosition?: { x: number; y: number }) => {
+    if (!clipboard || !plan) return;
+    takeSnapshot();
+    const offset = 25;
+
+    // Incolla Entità
+    clipboard.entities.forEach((copiedEntity, idx) => {
+      const newEntity: Entity = {
+        ...copiedEntity,
+        id: genId('ent'),
+        position: {
+          x: (pastePosition?.x ?? copiedEntity.position?.x ?? 0) + (idx + 1) * offset,
+          y: (pastePosition?.y ?? copiedEntity.position?.y ?? 0) + (idx + 1) * offset,
+        },
+      };
+      upsertEntity(newEntity);
+      if (clipboard.isCut) deleteEntity(copiedEntity.id);
+    });
+
+    // Incolla Note
+    clipboard.notes.forEach((copiedNote, idx) => {
+      const newNote: StickyNote = {
+        ...copiedNote,
+        id: genId('note'),
+        position: {
+          x: (pastePosition?.x ?? copiedNote.position?.x ?? 0) + (idx + 1) * offset,
+          y: (pastePosition?.y ?? copiedNote.position?.y ?? 0) + (idx + 1) * offset,
+        },
+      };
+      upsertNote(newNote);
+      if (clipboard.isCut) deleteNote(copiedNote.id);
+    });
+
+    if (clipboard.isCut) {
+      setClipboard(null);
+    }
+  }, [clipboard, plan, deleteEntity, upsertEntity, upsertNote, deleteNote]);
+
   const handleEditEntity = () => {
     if (!contextMenu) return;
     setEditingEntityId(contextMenu.entityId);
@@ -146,6 +285,7 @@ export function Canvas() {
   const handleDeleteEntity = () => {
     if (!contextMenu) return;
     if (window.confirm(`Delete entity "${contextMenu.entityName}"?`)) {
+      takeSnapshot();
       deleteEntity(contextMenu.entityId);
     }
   };
@@ -153,71 +293,6 @@ export function Canvas() {
     if (!contextMenu) return;
     setPendingRelation({ sourceId: contextMenu.entityId, type });
   };
-
-  const handleCopyEntity = useCallback(() => {
-    if (!plan) return;
-    const entitiesToCopy: Entity[] = [];
-    if (selectedEntityIds.length > 0) {
-      // Copy selected entities
-      selectedEntityIds.forEach((id) => {
-        const entity = plan.entities.find((e) => e.id === id);
-        if (entity) entitiesToCopy.push({ ...entity });
-      });
-    } else if (contextMenu) {
-      // Copy single entity from context menu
-      const entity = plan.entities.find((e) => e.id === contextMenu.entityId);
-      if (entity) entitiesToCopy.push({ ...entity });
-    }
-    if (entitiesToCopy.length > 0) {
-      setClipboard({ entities: entitiesToCopy, isCut: false });
-    }
-  }, [plan, selectedEntityIds, contextMenu]);
-
-  const handleCutEntity = useCallback(() => {
-    if (!plan) return;
-    const entitiesToCut: Entity[] = [];
-    if (selectedEntityIds.length > 0) {
-      // Cut selected entities
-      selectedEntityIds.forEach((id) => {
-        const entity = plan.entities.find((e) => e.id === id);
-        if (entity) entitiesToCut.push({ ...entity });
-      });
-    } else if (contextMenu) {
-      // Cut single entity from context menu
-      const entity = plan.entities.find((e) => e.id === contextMenu.entityId);
-      if (entity) entitiesToCut.push({ ...entity });
-    }
-    if (entitiesToCut.length > 0) {
-      setClipboard({ entities: entitiesToCut, isCut: true });
-    }
-  }, [plan, selectedEntityIds, contextMenu]);
-
-  const handlePasteEntity = useCallback((pastePosition?: { x: number; y: number }) => {
-    if (!clipboard || !plan) return;
-    let offsetX = 20;
-    let offsetY = 20;
-
-    clipboard.entities.forEach((copiedEntity) => {
-      const newEntity: Entity = {
-        ...copiedEntity,
-        id: Math.random().toString(36).substr(2, 9),
-        position: {
-          x: (pastePosition?.x ?? copiedEntity.position?.x ?? 0) + offsetX,
-          y: (pastePosition?.y ?? copiedEntity.position?.y ?? 0) + offsetY,
-        },
-      };
-      upsertEntity(newEntity);
-      offsetX += 20;
-      offsetY += 20;
-    });
-
-    if (clipboard.isCut) {
-      clipboard.entities.forEach((entity) => {
-        deleteEntity(entity.id);
-      });
-      setClipboard(null);
-    }
-  }, [clipboard, plan, deleteEntity, upsertEntity]);
 
   const handleCanvasClick = (e: React.MouseEvent | MouseEvent) => {
     // If click reached here, it's on empty canvas (nodes use stopPropagation)
@@ -242,18 +317,24 @@ export function Canvas() {
       
       if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
         e.preventDefault();
-        handleCopyEntity();
+        handleCopy();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
         e.preventDefault();
-        handleCutEntity();
+        handleCut();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
         e.preventDefault();
-        handlePasteEntity();
+        handlePaste();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+        e.preventDefault();
+        redo();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleCopyEntity, handleCutEntity, handlePasteEntity, plan]);
+  }, [handleCopy, handleCut, handlePaste, undo, redo, plan]);
 
   // ── Relation dialog sources ─────────────────────────────────────────────────
   const relationSource = relationDialog
@@ -282,10 +363,22 @@ export function Canvas() {
         isDirty={isDirty}
         saving={saving}
         pendingRelation={pendingRelation}
-        onAddEntity={(type) => { setNewEntityType(type); setEditingEntityId(null); setEntityDialogOpen(true); }}
+        canUndo={past.length > 0}
+        canRedo={future.length > 0}
+        onUndo={undo}
+        onRedo={redo}
+        onAddEntity={(type) => { 
+          setNewEntityType(type); setEditingEntityId(null); setEntityDialogOpen(true); 
+        }}
         onAddNote={() => setNoteDialog({ note: null, position: { x: 80, y: 80 } })}
         onCancelRelation={() => setPendingRelation(null)}
         onSave={handleSave}
+        snapToGrid={snapToGrid}
+        onToggleSnap={() => setSnapToGrid(!snapToGrid)}
+        gridColor={gridColor}
+        gridGap={gridGap}
+        onGridColorChange={setGridColor}
+        onGridGapChange={setGridGap}
       />
 
       {/* React Flow canvas */}
@@ -296,15 +389,31 @@ export function Canvas() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeDragStop={onNodeDragStop}
+          snapToGrid={snapToGrid}
+          snapGrid={[gridGap, gridGap]}
+          selectionOnDrag
+          selectionMode="partial"
+          panOnDrag={[1]}
+          panActivationKeyCode="Space"
+          onNodesDelete={(deleted) => {
+            takeSnapshot();
+            deleted.forEach((node) => {
+              if (node.type === 'stickyNode') deleteNote(node.id);
+              else deleteEntity(node.id);
+            });
+          }}
           onPaneClick={handleCanvasClick}
           onPaneContextMenu={handleCanvasContextMenu}
           nodeTypes={nodeTypes}
           fitView
           deleteKeyCode="Delete"
-          onEdgesDelete={(deleted: Edge[]) => deleted.forEach((e) => deleteRelation(e.id))}
+          onEdgesDelete={(deleted: Edge[]) => {
+            takeSnapshot();
+            deleted.forEach((e) => deleteRelation(e.id));
+          }}
           style={{ cursor: pendingRelation ? 'crosshair' : undefined }}
         >
-          <Background gap={20} color="#e2e8f0" />
+          <Background variant={BackgroundVariant.Dots} gap={gridGap} size={1} color={gridColor} />
           <Controls />
           <MiniMap
             nodeColor={(n: any) => {
@@ -320,11 +429,11 @@ export function Canvas() {
         onEdit={handleEditEntity}
         onDelete={handleDeleteEntity}
         onStartRelation={handleStartRelation}
-        onCopy={handleCopyEntity}
-        onCut={handleCutEntity}
-        onPaste={handlePasteEntity}
+        onCopy={handleCopy}
+        onCut={handleCut}
+        onPaste={handlePaste}
         canPaste={clipboard !== null}
-        selectedCount={selectedEntityIds.length}
+        selectedCount={nodes.filter(n => n.selected && n.type === 'entityNode').length}
         onToggleSelection={toggleSelectedEntity}
       />
 
@@ -347,7 +456,7 @@ export function Canvas() {
         >
           <button
             onClick={() => {
-              handlePasteEntity({
+              handlePaste({
                 x: canvasContextMenu.x,
                 y: canvasContextMenu.y,
               });
@@ -404,7 +513,11 @@ export function Canvas() {
         <StickyNoteDialog
           note={noteDialog.note}
           position={noteDialog.position}
-          onSave={(note) => { upsertNote(note); setNoteDialog(null); }}
+          onSave={(note) => { 
+            takeSnapshot();
+            upsertNote(note); 
+            setNoteDialog(null); 
+          }}
           onClose={() => setNoteDialog(null)}
         />
       )}
@@ -419,8 +532,13 @@ export function Canvas() {
             setNoteDialog({ note });
             setNoteContextMenu(null);
           }}
+          onCopy={() => { handleCopy(); setNoteContextMenu(null); }}
+          onCut={() => { handleCut(); setNoteContextMenu(null); }}
           onDelete={() => {
-            if (window.confirm('Delete this note?')) deleteNote(noteContextMenu.noteId);
+            if (window.confirm('Delete this note?')) {
+              takeSnapshot();
+              deleteNote(noteContextMenu.noteId);
+            }
             setNoteContextMenu(null);
           }}
           onClose={() => setNoteContextMenu(null)}

@@ -17,7 +17,7 @@ const TYPE_COLORS: Record<string, { bg: string; border: string; header: string }
 export const EntityNode = memo(({ data, selected }: NodeProps) => {
   const entity = (data as unknown as EntityNodeData).entity;
   const colors = TYPE_COLORS[entity.type] ?? TYPE_COLORS.master;
-  const { setContextMenu, setSelectedEntityId, pendingRelation, addRelation, setPendingRelation, plan, selectedEntityIds, toggleSelectedEntity } = useStore();
+  const { setContextMenu, setSelectedEntityId, pendingRelation, toggleSelectedEntity } = useStore();
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -59,7 +59,6 @@ export const EntityNode = memo(({ data, selected }: NodeProps) => {
   );
 
   const isPendingTarget = pendingRelation && pendingRelation.sourceId !== entity.id;
-  const isMultiSelected = selectedEntityIds.includes(entity.id);
 
   return (
     <div
@@ -68,7 +67,7 @@ export const EntityNode = memo(({ data, selected }: NodeProps) => {
       onDoubleClick={handleDoubleClick}
       style={{
         background: colors.bg,
-        border: `2px solid ${selected ? '#f59e0b' : isPendingTarget ? '#f59e0b' : isMultiSelected ? '#2563eb' : colors.border}`,
+        border: `2px solid ${selected ? '#f59e0b' : isPendingTarget ? '#f59e0b' : colors.border}`,
         borderRadius: 6,
         minWidth: 160,
         cursor: isPendingTarget ? 'crosshair' : 'default',
@@ -76,8 +75,6 @@ export const EntityNode = memo(({ data, selected }: NodeProps) => {
           ? `0 0 0 3px rgba(245,158,11,0.3)`
           : isPendingTarget
           ? `0 0 0 3px rgba(245,158,11,0.2)`
-          : isMultiSelected
-          ? `0 0 0 2px rgba(37,99,235,0.4)`
           : '0 2px 6px rgba(0,0,0,0.1)',
         fontFamily: 'monospace',
         fontSize: 12,

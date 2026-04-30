@@ -2,6 +2,8 @@ interface Props {
   x: number;
   y: number;
   onEdit: () => void;
+  onCopy: () => void;
+  onCut: () => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -12,7 +14,7 @@ const btnStyle: React.CSSProperties = {
   cursor: 'pointer', color: '#1e293b', fontFamily: 'inherit', fontSize: 13,
 };
 
-export function NoteContextMenu({ x, y, onEdit, onDelete, onClose }: Props) {
+export function NoteContextMenu({ x, y, onEdit, onCopy, onCut, onDelete, onClose }: Props) {
   return (
     <div
       onMouseLeave={onClose}
@@ -24,6 +26,8 @@ export function NoteContextMenu({ x, y, onEdit, onDelete, onClose }: Props) {
       }}
     >
       <button onClick={onEdit} style={btnStyle}>✏️ Edit note</button>
+      <button onClick={onCopy} style={btnStyle}>📋 Copy note</button>
+      <button onClick={onCut} style={btnStyle}>✂️ Cut note</button>
       <div style={{ height: 1, background: '#f1f5f9' }} />
       <button onClick={onDelete} style={{ ...btnStyle, color: '#ef4444' }}>🗑️ Delete note</button>
     </div>
