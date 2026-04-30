@@ -52,8 +52,8 @@ export function DatabaseTab({ entity, set }: Props) {
       <div style={{ display: 'flex', gap: 16 }}>
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Data name</label>
-          <input style={input} value={entity.program}
-            onChange={(e) => set('program', e.target.value.replace(/\s/g, ''))} />
+          <input style={input} value={entity.dataName || ''}
+            onChange={(e) => set('dataName', e.target.value.replace(/\s/g, ''))} />
         </div>
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Physical name</label>

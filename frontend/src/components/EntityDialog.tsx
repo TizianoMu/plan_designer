@@ -59,16 +59,12 @@ export function EntityDialog({ entityId, defaultType = 'master', onClose }: Prop
     setEntity((prev) => ({ ...prev, [key]: value }));
 
   const handleSave = () => {
-    if (!entity.name.trim()) {
-      setValidationErrors(['Name is required.']);
-      setActiveTab('Main');
-      return;
-    }
-    const { blocking, warnings } = validateEntity(entity);
+    const { blocking, warnings } = validateEntity(entity, plan?.entities || []);
+
     if (blocking.length > 0) {
       setValidationErrors(blocking);
-      setValidationWarnings([]);
-      setActiveTab('Fields');
+      setValidationWarnings([]); // Clear warnings if there are blocking errors
+      setActiveTab('Main');
       return;
     }
     if (warnings.length > 0) {
@@ -344,10 +340,14 @@ function DatabaseTab({ entity, set }: { entity: Entity; set: <K extends keyof En
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Row label="Data name">
-        <input style={input} value={entity.program} onChange={(e) => set('program', e.target.value)} />
+        <input style={input} value={entity.dataName || ''} onChange={(e) => set('dataName', e.target.value)} />
       </Row>
       <Row label="Physical name">
-        <input value={entity.program} readOnly style={{ ...input, background: '#f8fafc', color: '#64748b' }} />
+        <input 
+          style={input} 
+          value={entity.physicalName || ''} 
+          onChange={(e) => set('physicalName', e.target.value)} 
+        />
       </Row>
       <div style={{ display: 'flex', gap: 20 }}>
         {['Company name', 'Keep historical data', 'Update timestamp'].map((l) => (

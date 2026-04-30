@@ -1,49 +1,29 @@
-import type { Entity, Field } from '../types';
+import type { Entity } from '../types';
 
-export interface ValidationResult {
-  blocking: string[];   // hard errors — impedisce il salvataggio
-  warnings: string[];   // soft warnings — chiede conferma
-}
-
-export function validateEntity(entity: Entity): ValidationResult {
+export function validateEntity(entity: Entity, allEntities: Entity[] = []) {
   const blocking: string[] = [];
   const warnings: string[] = [];
+  const nameRegex = /^[a-zA-Z0-9_]*$/;
 
-  const fields = entity.fields;
+  if (!entity.name.trim()) blocking.push('Name is required.');
+  
+  if (!entity.program.trim()) blocking.push('Program is required.');
+  else if (!nameRegex.test(entity.program)) blocking.push('Program cannot contain spaces or special characters.');
 
-  // ── Hard block ───────────────────────────────────────────────────────────────
-  if (fields.length === 0) {
-    blocking.push('You must define at least one field before saving.');
-  }
+  if (!entity.dataName?.trim()) blocking.push('Data name is required.');
+  else if (!nameRegex.test(entity.dataName)) blocking.push('Data name cannot contain spaces or special characters.');
 
-  if (fields.length > 0) {
-    // ── Key checks ─────────────────────────────────────────────────────────────
-    const keyFields = fields.filter((f) => f.key === 1);
+  // Duplicate checks against all other entities
+  const duplicateName = allEntities.find(e => e.id !== entity.id && e.name.toLowerCase() === entity.name.toLowerCase());
+  const duplicateProg = allEntities.find(e => e.id !== entity.id && e.program.toLowerCase() === entity.program.toLowerCase());
+  const duplicateData = allEntities.find(e => e.id !== entity.id && (e.dataName || '').toLowerCase() === (entity.dataName || '').toLowerCase());
 
-    if (keyFields.length === 0) {
-      warnings.push('No primary key (key = 1) is defined. It is strongly recommended to set at least one key field.');
-    }
+  if (duplicateName) blocking.push(`The name "${entity.name}" is already used by another entity.`);
+  if (duplicateProg) blocking.push(`The program "${entity.program}" is already used by entity "${duplicateProg.name}".`);
+  if (duplicateData) blocking.push(`The data name "${entity.dataName}" is already used by entity "${duplicateData.name}".`);
 
-    // Detail-specific key rules
-    if (entity.type === 'detail' && keyFields.length > 0) {
-      const repeatedKeys = keyFields.filter((f) => f.repeated);
-      const nonRepeatedKeys = keyFields.filter((f) => !f.repeated);
-
-      if (repeatedKeys.length === 0) {
-        warnings.push(
-          'Detail entity: no primary key on a REPEATED field. ' +
-          'A detail must have at least one key on a repeated field (e.g. CPROWNUM).'
-        );
-      }
-
-      if (nonRepeatedKeys.length === 0) {
-        warnings.push(
-          'Detail entity: no primary key on a NON-REPEATED field. ' +
-          'CPROWNUM and CPROWORD are both repeated — you must also set a key on a non-repeated field (e.g. the parent ID).'
-        );
-      }
-    }
-  }
+  // Example warning (if any)
+  if (entity.fields.length === 0) warnings.push('Entity has no fields defined.');
 
   return { blocking, warnings };
 }

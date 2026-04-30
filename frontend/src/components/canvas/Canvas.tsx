@@ -9,6 +9,7 @@ import '@xyflow/react/dist/style.css';
 import { useStore } from '../../store';
 import { api } from '../../utils/api';
 import { entitiesToNodes, relationsToEdges, notesToNodes, genId } from '../../utils/helpers';
+import { validateEntity } from '../../utils/validation';
 import type { Entity, RelationType, StickyNote } from '../../types';
 
 import { EntityNode } from './nodes/EntityNode';
@@ -36,10 +37,10 @@ interface CanvasContextMenuState {
 export function Canvas() {
   const {
     plan, project, activeModule, setPlan,
-    deleteEntity, updateEntityPosition, deleteRelation, 
+    deleteEntity, updateEntityPosition, deleteRelation,
     contextMenu, setContextMenu,
     pendingRelation, setPendingRelation,
-    isDirty, markClean,
+    isDirty, markClean, markDirty,
     upsertNote, deleteNote, updateNotePosition,
     selectedEntityIds, toggleSelectedEntity, clearSelectedEntities,
     upsertEntity,
@@ -68,7 +69,8 @@ export function Canvas() {
     setFuture((prev) => [JSON.parse(JSON.stringify(plan)), ...prev]);
     setPast(newPast);
     setPlan(previous);
-  }, [past, plan, setPlan]);
+    markDirty(); // Mark as dirty after undo
+  }, [past, plan, setPlan, markDirty]);
 
   const redo = useCallback(() => {
     if (future.length === 0 || !plan) return;
@@ -77,7 +79,8 @@ export function Canvas() {
     setPast((prev) => [JSON.parse(JSON.stringify(plan)), ...prev]);
     setFuture(newFuture);
     setPlan(next);
-  }, [future, plan, setPlan]);
+    markDirty(); // Mark as dirty after redo
+  }, [future, plan, setPlan, markDirty]);
 
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -166,8 +169,23 @@ export function Canvas() {
   }, [nodes, updateEntityPosition, updateNotePosition, takeSnapshot]);
 
   // ── Save ────────────────────────────────────────────────────────────────────
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!plan || !project || !activeModule) return;
+
+    // Impedisce il salvataggio globale se ci sono entità con campi obbligatori vuoti
+    const allBlockingErrors: string[] = [];
+    plan.entities.forEach(e => {
+      const { blocking } = validateEntity(e, plan.entities);
+      if (blocking.length > 0) {
+        allBlockingErrors.push(...blocking.map(err => `Entity "${e.name}": ${err}`));
+      }
+    });
+
+    if (allBlockingErrors.length > 0) {
+      alert('Cannot save due to validation errors:\n' + allBlockingErrors.join('\n'));
+      return;
+    }
+
     setSaving(true);
     try {
       await api.savePlan(project.project_path, activeModule.name, plan);
@@ -177,7 +195,7 @@ export function Canvas() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [plan, project, activeModule, markClean]);
 
   // ── Clipboard & Context menu handlers ───────────────────────────────────────
   const handleCopy = useCallback(() => {
@@ -249,6 +267,10 @@ export function Canvas() {
       const newEntity: Entity = {
         ...copiedEntity,
         id: genId('ent'),
+        name: `Copy of ${copiedEntity.name}`,
+        program: '',
+        dataName: '',
+        physicalName: '',
         position: {
           x: (pastePosition?.x ?? copiedEntity.position?.x ?? 0) + (idx + 1) * offset,
           y: (pastePosition?.y ?? copiedEntity.position?.y ?? 0) + (idx + 1) * offset,
@@ -315,7 +337,10 @@ export function Canvas() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!plan) return;
       
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
         e.preventDefault();
         handleCopy();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
@@ -334,7 +359,7 @@ export function Canvas() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleCopy, handleCut, handlePaste, undo, redo, plan]);
+  }, [handleCopy, handleCut, handlePaste, undo, redo, handleSave, plan]);
 
   // ── Relation dialog sources ─────────────────────────────────────────────────
   const relationSource = relationDialog
@@ -406,7 +431,7 @@ export function Canvas() {
           onPaneContextMenu={handleCanvasContextMenu}
           nodeTypes={nodeTypes}
           fitView
-          deleteKeyCode="Delete"
+          deleteKeyCode={['Delete', 'Backspace']}
           onEdgesDelete={(deleted: Edge[]) => {
             takeSnapshot();
             deleted.forEach((e) => deleteRelation(e.id));

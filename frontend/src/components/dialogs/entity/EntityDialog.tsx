@@ -31,7 +31,11 @@ export function EntityDialog({ entityId, defaultType = 'master', onClose }: Prop
 
   const [entity, setEntity] = useState<Entity>(() =>
     existing
-      ? { ...existing, fields: existing.fields.map((f) => ({ ...f })) }
+      ? { 
+          ...existing, 
+          dataName: existing.dataName || '', // Fallback per vecchi record
+          fields: existing.fields.map((f) => ({ ...f })) 
+        }
       : makeEntity(lockedType)
   );
   const [activeTab, setActiveTab] = useState<Tab>('Main');
@@ -62,16 +66,15 @@ export function EntityDialog({ entityId, defaultType = 'master', onClose }: Prop
     setEntity((prev) => ({ ...prev, [key]: value }));
 
   const handleSave = () => {
-    if (!entity.name.trim()) {
-      setValidationErrors(['Name is required.']);
-      setActiveTab('Main');
-      return;
-    }
-    const { blocking, warnings } = validateEntity(entity);
+    const { blocking, warnings } = validateEntity(entity, plan?.entities || []);
+
     if (blocking.length > 0) {
       setValidationErrors(blocking);
       setValidationWarnings([]);
-      setActiveTab('Fields');
+      // Se l'errore riguarda il dataName, andiamo al tab Database
+      if (blocking.some(e => e.toLowerCase().includes('data name'))) setActiveTab('Database');
+      else if (blocking.some(e => e.toLowerCase().includes('name') || e.toLowerCase().includes('program'))) setActiveTab('Main');
+      else setActiveTab('Fields');
       return;
     }
     if (warnings.length > 0) {

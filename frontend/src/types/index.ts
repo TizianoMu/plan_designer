@@ -76,6 +76,7 @@ export interface Entity {
   id: string;
   name: string;
   program: string;
+  dataName: string;
   type: EntityType;
   template: string;
   created: string;

@@ -1,7 +1,8 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import type { Entity } from '../../../types';
 import { useStore } from '../../../store';
+import { validateEntity } from '../../../utils/validation';
 
 interface EntityNodeData {
   entity: Entity;
@@ -17,7 +18,21 @@ const TYPE_COLORS: Record<string, { bg: string; border: string; header: string }
 export const EntityNode = memo(({ data, selected }: NodeProps) => {
   const entity = (data as unknown as EntityNodeData).entity;
   const colors = TYPE_COLORS[entity.type] ?? TYPE_COLORS.master;
-  const { setContextMenu, setSelectedEntityId, pendingRelation, toggleSelectedEntity } = useStore();
+  const { setContextMenu, setSelectedEntityId, pendingRelation, toggleSelectedEntity, plan } = useStore();
+  
+  // Calculate validation errors for this specific entity
+  const { blocking, warnings } = useMemo(() => {
+    // Pass the current plan to validateEntity for duplicate checks
+    return validateEntity(entity, plan?.entities || []);
+  }, [entity, plan?.entities]);
+
+  const isInvalid = blocking.length > 0; // An entity is invalid if there are blocking errors
+
+  const validationTooltip = useMemo(() => {
+    if (!isInvalid && warnings.length === 0) return '';
+    const messages = [...blocking, ...warnings]; // Combine blocking errors and warnings
+    return `Validation Issues:\n${messages.map(msg => `- ${msg}`).join('\n')}`;
+  }, [isInvalid, blocking, warnings]);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -67,7 +82,7 @@ export const EntityNode = memo(({ data, selected }: NodeProps) => {
       onDoubleClick={handleDoubleClick}
       style={{
         background: colors.bg,
-        border: `2px solid ${selected ? '#f59e0b' : isPendingTarget ? '#f59e0b' : colors.border}`,
+        border: `2px solid ${selected ? '#f59e0b' : isPendingTarget ? '#f59e0b' : isInvalid ? '#ef4444' : colors.border}`,
         borderRadius: 6,
         minWidth: 160,
         cursor: isPendingTarget ? 'crosshair' : 'default',
@@ -96,6 +111,11 @@ export const EntityNode = memo(({ data, selected }: NodeProps) => {
           gap: 4,
         }}
       >
+        {isInvalid && (
+          <span title={validationTooltip} style={{ fontSize: 12, cursor: 'help' }}>
+            ⚠️
+          </span>
+        )}
         <span style={{ opacity: 0.8 }}>{entity.type.toUpperCase()}</span>
         <span style={{ marginLeft: 'auto', opacity: 0.6, fontSize: 10 }}>{entity.program}</span>
       </div>
