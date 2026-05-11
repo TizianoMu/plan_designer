@@ -62,15 +62,21 @@ export function EntityDialog({ entityId, defaultType = 'master', onClose }: Prop
     });
   }, [entity.hasCprownum, entity.hasCproword, entity.type]);
 
+  // Validazione in tempo reale mentre l'utente scrive
+  useEffect(() => {
+    const { blocking, warnings } = validateEntity(entity, plan?.entities || []);
+    setValidationErrors(blocking);
+    setValidationWarnings(warnings);
+  }, [entity, plan?.entities]);
+
   const set = <K extends keyof Entity>(key: K, value: Entity[K]) =>
     setEntity((prev) => ({ ...prev, [key]: value }));
 
   const handleSave = () => {
+    // Usiamo blocking e warnings calcolati al momento per gestire il cambio tab
     const { blocking, warnings } = validateEntity(entity, plan?.entities || []);
 
     if (blocking.length > 0) {
-      setValidationErrors(blocking);
-      setValidationWarnings([]);
       // Se l'errore riguarda il dataName, andiamo al tab Database
       if (blocking.some(e => e.toLowerCase().includes('data name'))) setActiveTab('Database');
       else if (blocking.some(e => e.toLowerCase().includes('name') || e.toLowerCase().includes('program'))) setActiveTab('Main');

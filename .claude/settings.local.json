@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Content \"C:\\\\Users\\\\tiziano.murzio\\\\Documents\\\\src\\\\plan_designer\\\\CLAUDE.md\" -Raw | Select-String -Pattern '``' -AllMatches | ForEach-Object { $_.Matches.Count })"
+    ]
+  }
+}
