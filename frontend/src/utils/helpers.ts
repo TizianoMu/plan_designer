@@ -131,7 +131,7 @@ export function notesToNodes(notes: StickyNote[]): import('@xyflow/react').Node[
 // ── Entity computed fields (with auto-flags applied) ──────────────────────────
 
 export function getEntityEffectiveFields(entity: Entity): Field[] {
-  const fields = [...entity.fields];
+  const fields = [...(entity.fields ?? [])];
   if (entity.type === 'detail') {
     if (entity.hasCprownum && !fields.find((f) => f.name === 'CPROWNUM')) {
       fields.unshift(cprownum());

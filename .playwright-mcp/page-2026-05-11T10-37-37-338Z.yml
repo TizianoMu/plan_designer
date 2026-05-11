@@ -1,0 +1,12 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: SitePainter
+    - button "Open Project" [ref=e6] [cursor=pointer]
+    - button "New Project" [ref=e7] [cursor=pointer]
+    - button "Close Project" [ref=e8] [cursor=pointer]
+  - generic [ref=e10]:
+    - generic [ref=e11]: SitePainter
+    - generic [ref=e12]: Open an existing project or create a new one
+    - generic [ref=e13]:
+      - button "Open Project" [ref=e14] [cursor=pointer]
+      - button "New Project" [ref=e15] [cursor=pointer]

@@ -16,67 +16,59 @@ export function FolderPicker({ mode, onSelect, onClose }: Props) {
   const [error, setError] = useState('');
 
   const load = async (path: string) => {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const res = await api.browse(path);
-      setCurrentPath(res.path);
-      setParent(res.parent);
-      setEntries(res.entries);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+      setCurrentPath(res.path); setParent(res.parent); setEntries(res.entries);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { load(''); }, []);
 
   const handleConfirm = () => {
     if (mode === 'create') {
-      if (!newName.trim()) return setError('Enter a project name');
+      if (!newName.trim()) return setError('Inserisci un nome progetto');
       onSelect(currentPath, newName.trim());
     } else {
-      if (!currentPath) return setError('Select a folder');
+      if (!currentPath) return setError('Seleziona una cartella');
       onSelect(currentPath);
     }
   };
 
   return (
-    <div style={overlay}>
-      <div style={dialog}>
-        <div style={titleBar}>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>
-            {mode === 'open' ? 'Open Project Folder' : 'Create New Project'}
+    <div style={overlayStyle}>
+      <div style={dialogStyle}>
+        {/* Header */}
+        <div style={headerStyle}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>
+            {mode === 'open' ? 'Apri cartella progetto' : 'Crea nuovo progetto'}
           </span>
-          <button onClick={onClose} style={closeBtn}>✕</button>
+          <button onClick={onClose} style={closeBtnStyle}>×</button>
         </div>
 
-        <div style={{ padding: 12 }}>
+        <div style={{ padding: 16 }}>
           {/* Current path */}
           <div style={{
-            background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4,
-            padding: '6px 10px', fontSize: 12, color: '#475569', marginBottom: 8,
+            background: '#f9fafb', border: '1px solid #e3e6df', borderRadius: 6,
+            padding: '6px 10px', fontSize: 11, color: '#6b7280', marginBottom: 10,
             fontFamily: 'monospace', wordBreak: 'break-all',
           }}>
-            {currentPath || 'Loading…'}
+            {currentPath || 'Caricamento…'}
           </div>
 
-          {/* Entries */}
+          {/* File list */}
           <div style={{
-            border: '1px solid #e2e8f0', borderRadius: 4, height: 260,
+            border: '1px solid #e3e6df', borderRadius: 6, height: 250,
             overflowY: 'auto', background: '#fff',
           }}>
             {loading ? (
-              <div style={{ padding: 16, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>Loading…</div>
+              <div style={{ padding: 16, color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>Caricamento…</div>
             ) : (
               <>
                 {parent && parent !== currentPath && (
-                  <button
-                    onClick={() => load(parent)}
-                    style={entryBtn}
-                  >
-                    <span style={{ marginRight: 6 }}>⬆</span> ..
+                  <button onClick={() => load(parent)} style={entryStyle(false)}>
+                    <span style={{ color: '#9ca3af', marginRight: 6 }}>↑</span> Cartella superiore
                   </button>
                 )}
                 {entries.map((e) => (
@@ -85,101 +77,98 @@ export function FolderPicker({ mode, onSelect, onClose }: Props) {
                     onDoubleClick={() => load(e.path)}
                     onClick={() => setCurrentPath(e.path)}
                     style={{
-                      ...entryBtn,
-                      background: currentPath === e.path ? '#eff6ff' : 'none',
-                      color: currentPath === e.path ? '#2563eb' : '#1e293b',
+                      ...entryStyle(currentPath === e.path),
                     }}
                   >
-                    <span style={{ marginRight: 6 }}>
-                      {e.is_project ? '📂' : '📁'}
-                    </span>
-                    {e.name}
+                    <span style={{ flex: 1 }}>{e.name}</span>
                     {e.is_project && (
-                      <span style={{ marginLeft: 'auto', fontSize: 10, color: '#16a34a', fontWeight: 600 }}>
-                        PROJECT
+                      <span style={{
+                        fontSize: 10, color: '#16a34a', fontWeight: 700,
+                        background: '#f0fdf4', padding: '1px 6px', borderRadius: 10,
+                      }}>
+                        PROGETTO
                       </span>
                     )}
                   </button>
                 ))}
                 {entries.length === 0 && !loading && (
-                  <div style={{ padding: 16, color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
-                    Empty folder
-                  </div>
+                  <div style={{ padding: 16, color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>Cartella vuota</div>
                 )}
               </>
             )}
           </div>
 
-          {/* Create mode: project name input */}
           {mode === 'create' && (
-            <div style={{ marginTop: 10 }}>
-              <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>
-                Project name
+            <div style={{ marginTop: 12 }}>
+              <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4, fontWeight: 500 }}>
+                Nome progetto
               </label>
               <input
                 style={{
-                  width: '100%', padding: '6px 8px', border: '1px solid #cbd5e1',
-                  borderRadius: 4, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box',
+                  width: '100%', padding: '7px 10px', border: '1px solid #e3e6df',
+                  borderRadius: 6, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box',
+                  outline: 'none', color: '#111827', background: '#fff',
                 }}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="MyProject"
+                placeholder="MioProgetto"
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
               />
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
-                Will be created in: <strong>{currentPath || '…'}/{newName || '…'}</strong>
-              </div>
+              {newName && (
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4, fontFamily: 'monospace' }}>
+                  {currentPath || '…'}/{newName}
+                </div>
+              )}
             </div>
           )}
 
-          {error && (
-            <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444' }}>{error}</div>
-          )}
+          {error && <div style={{ marginTop: 8, fontSize: 12, color: '#dc2626' }}>{error}</div>}
         </div>
 
-        <div style={footer}>
-          <button onClick={handleConfirm} style={btnPrimary} disabled={loading}>
-            {mode === 'open' ? 'Open' : 'Create'}
+        <div style={footerStyle}>
+          <button onClick={onClose} style={btnOutline}>Annulla</button>
+          <button onClick={handleConfirm} disabled={loading} style={btnPrimary}>
+            {mode === 'open' ? 'Apri' : 'Crea'}
           </button>
-          <button onClick={onClose} style={btnSecondary}>Cancel</button>
         </div>
       </div>
     </div>
   );
 }
 
-const overlay: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900,
 };
-const dialog: React.CSSProperties = {
-  background: '#fff', borderRadius: 8, width: 520,
-  display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+const dialogStyle: React.CSSProperties = {
+  background: '#fff', borderRadius: 10, width: 520,
+  display: 'flex', flexDirection: 'column', boxShadow: '0 16px 48px rgba(0,0,0,0.15)',
 };
-const titleBar: React.CSSProperties = {
-  padding: '12px 16px', borderBottom: '1px solid #e2e8f0',
+const headerStyle: React.CSSProperties = {
+  padding: '16px 20px', borderBottom: '1px solid #f3f4f6',
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  background: '#f8fafc', borderRadius: '8px 8px 0 0',
 };
-const closeBtn: React.CSSProperties = {
-  background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#64748b',
+const closeBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer', fontSize: 20,
+  color: '#9ca3af', lineHeight: 1, padding: '0 2px', fontFamily: 'inherit',
 };
-const footer: React.CSSProperties = {
-  padding: '10px 16px', borderTop: '1px solid #e2e8f0',
+const footerStyle: React.CSSProperties = {
+  padding: '12px 16px', borderTop: '1px solid #f3f4f6',
   display: 'flex', justifyContent: 'flex-end', gap: 8,
 };
-const entryBtn: React.CSSProperties = {
+const entryStyle = (active: boolean): React.CSSProperties => ({
   display: 'flex', alignItems: 'center', width: '100%',
-  padding: '7px 10px', background: 'none', border: 'none',
-  cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
-  textAlign: 'left', borderBottom: '1px solid #f8fafc',
-};
+  padding: '8px 12px', background: active ? '#f0fdf4' : 'none', border: 'none',
+  cursor: 'pointer', fontSize: 13, fontFamily: 'monospace', textAlign: 'left',
+  color: active ? '#15803d' : '#374151', fontWeight: active ? 600 : 400,
+  borderLeft: active ? '3px solid #16a34a' : '3px solid transparent',
+});
 const btnPrimary: React.CSSProperties = {
-  padding: '6px 20px', background: '#2563eb', color: '#fff', border: 'none',
-  borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+  padding: '7px 20px', background: '#16a34a', color: '#fff', border: 'none',
+  borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
 };
-const btnSecondary: React.CSSProperties = {
-  padding: '6px 16px', background: '#f1f5f9', color: '#374151', border: '1px solid #cbd5e1',
-  borderRadius: 4, cursor: 'pointer', fontSize: 13,
+const btnOutline: React.CSSProperties = {
+  padding: '7px 16px', background: '#fff', color: '#374151', border: '1px solid #e3e6df',
+  borderRadius: 6, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
 };

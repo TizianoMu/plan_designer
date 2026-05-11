@@ -20,6 +20,8 @@ import { CanvasContextMenu } from '../shared/CanvasContextMenu';
 import { EntityDialog } from '../dialogs/entity/EntityDialog';
 import { RelationDialog } from '../dialogs/RelationDialog';
 import { StickyNoteDialog } from '../dialogs/StickyNoteDialog';
+import { SqlPreviewDialog } from '../dialogs/SqlPreviewDialog';
+import { generateSql } from '../../utils/generateSql';
 
 const nodeTypes = { entityNode: EntityNode, stickyNode: StickyNode };
 
@@ -50,6 +52,7 @@ export function Canvas() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const [saving, setSaving] = useState(false);
+  const [sqlOutput, setSqlOutput] = useState<string | null>(null);
 
   // ── Undo/Redo State ────────────────────────────────────────────────────────
   const [past, setPast] = useState<any[]>([]);
@@ -108,7 +111,7 @@ export function Canvas() {
 
   // ── Snap to Grid State ─────────────────────────────────────────────────────
   const [snapToGrid, setSnapToGrid] = useState(true);
-  const [gridColor, setGridColor] = useState('#94a3b8');
+  const [gridColor, setGridColor] = useState('#d4d7ce');
   const [gridGap, setGridGap] = useState(20);
 
   // ── Sync plan → React Flow ──────────────────────────────────────────────────
@@ -190,6 +193,34 @@ export function Canvas() {
     try {
       await api.savePlan(project.project_path, activeModule.name, plan);
       markClean();
+    } catch (e: any) {
+      alert('Save error: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }, [plan, project, activeModule, markClean]);
+
+  const handleSaveAndGenerate = useCallback(async () => {
+    if (!plan || !project || !activeModule) return;
+
+    const allBlockingErrors: string[] = [];
+    plan.entities.forEach((e) => {
+      const { blocking } = validateEntity(e, plan.entities);
+      if (blocking.length > 0) {
+        allBlockingErrors.push(...blocking.map((err) => `Entity "${e.name}": ${err}`));
+      }
+    });
+
+    if (allBlockingErrors.length > 0) {
+      alert('Cannot save due to validation errors:\n' + allBlockingErrors.join('\n'));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.savePlan(project.project_path, activeModule.name, plan);
+      markClean();
+      setSqlOutput(generateSql(plan));
     } catch (e: any) {
       alert('Save error: ' + e.message);
     } finally {
@@ -374,8 +405,7 @@ export function Canvas() {
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: '#94a3b8', fontSize: 14, flexDirection: 'column', gap: 8,
       }}>
-        <div style={{ fontSize: 32 }}>📋</div>
-        <div>Select a module from the sidebar to start</div>
+        <div style={{ fontSize: 13, color: '#9ca3af' }}>Seleziona un modulo dalla sidebar per iniziare</div>
       </div>
     );
   }
@@ -398,6 +428,7 @@ export function Canvas() {
         onAddNote={() => setNoteDialog({ note: null, position: { x: 80, y: 80 } })}
         onCancelRelation={() => setPendingRelation(null)}
         onSave={handleSave}
+        onSaveAndGenerate={handleSaveAndGenerate}
         snapToGrid={snapToGrid}
         onToggleSnap={() => setSnapToGrid(!snapToGrid)}
         gridColor={gridColor}
@@ -407,7 +438,7 @@ export function Canvas() {
       />
 
       {/* React Flow canvas */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, background: '#f2f4ef' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -464,52 +495,26 @@ export function Canvas() {
 
       {/* Canvas right-click menu (empty area) */}
       {canvasContextMenu && (
-        <div
-          style={{
-            position: 'fixed',
-            left: canvasContextMenu.x,
-            top: canvasContextMenu.y,
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: 6,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-            zIndex: 2000,
-            minWidth: 150,
-            overflow: 'hidden',
-            fontSize: 13,
-          }}
-        >
+        <div style={{
+          position: 'fixed', left: canvasContextMenu.x, top: canvasContextMenu.y,
+          background: '#1c1c1e', border: '1px solid #3f3f46',
+          zIndex: 2000, minWidth: 140, fontSize: 12,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+        }}>
           <button
-            onClick={() => {
-              handlePaste({
-                x: canvasContextMenu.x,
-                y: canvasContextMenu.y,
-              });
-              setCanvasContextMenu(null);
-            }}
+            onClick={() => { handlePaste({ x: canvasContextMenu.x, y: canvasContextMenu.y }); setCanvasContextMenu(null); }}
             disabled={!clipboard}
             style={{
-              display: 'block',
-              width: '100%',
-              padding: '8px 14px',
-              background: 'none',
-              border: 'none',
-              textAlign: 'left',
-              cursor: clipboard ? 'pointer' : 'not-allowed',
-              color: clipboard ? '#1e293b' : '#cbd5e1',
-              fontFamily: 'inherit',
-              fontSize: 13,
+              display: 'block', width: '100%', padding: '7px 12px',
+              background: 'none', border: 'none', textAlign: 'left',
+              cursor: clipboard ? 'pointer' : 'default',
+              color: clipboard ? '#e4e4e7' : '#3f3f46',
+              fontFamily: 'inherit', fontSize: 12,
             }}
-            onMouseEnter={(e) => {
-              if (clipboard) {
-                (e.target as HTMLButtonElement).style.background = '#f1f5f9';
-              }
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.background = 'none';
-            }}
+            onMouseEnter={(e) => { if (clipboard) (e.currentTarget as HTMLButtonElement).style.background = '#27272a'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
           >
-            📌 Paste
+            Paste
           </button>
         </div>
       )}
@@ -544,6 +549,15 @@ export function Canvas() {
             setNoteDialog(null); 
           }}
           onClose={() => setNoteDialog(null)}
+        />
+      )}
+
+      {/* SQL preview dialog */}
+      {sqlOutput !== null && (
+        <SqlPreviewDialog
+          sql={sqlOutput}
+          moduleName={activeModule?.name ?? 'module'}
+          onClose={() => setSqlOutput(null)}
         />
       )}
 

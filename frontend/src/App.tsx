@@ -8,43 +8,27 @@ import { FolderPicker } from './components/dialogs/FolderPicker';
 type PickerMode = 'open' | 'create' | null;
 
 function UnsavedChangesModal() {
-  const { pendingAction, setPendingAction, isDirty } = useStore();
+  const { pendingAction, setPendingAction } = useStore();
   if (!pendingAction) return null;
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000,
-    }}>
+    <div style={overlay}>
       <div style={{
-        background: '#fff', borderRadius: 8, padding: 24, width: 380,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        background: '#fff', borderRadius: 10, padding: '28px 28px 22px',
+        width: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
       }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>⚠️ Unsaved changes</div>
-        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
-          You have unsaved changes. Do you want to proceed and lose them?
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
+          Modifiche non salvate
+        </div>
+        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 24, lineHeight: 1.5 }}>
+          Hai delle modifiche non salvate. Procedendo, andranno perse.
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={() => setPendingAction(null)} style={btnOutline}>Annulla</button>
           <button
-            onClick={() => {
-              const fn = pendingAction;
-              setPendingAction(null);
-              fn();
-            }}
-            style={{
-              padding: '6px 16px', background: '#ef4444', color: '#fff', border: 'none',
-              borderRadius: 4, cursor: 'pointer', fontSize: 13,
-            }}
+            onClick={() => { const fn = pendingAction; setPendingAction(null); fn(); }}
+            style={btnDanger}
           >
-            Discard & continue
-          </button>
-          <button
-            onClick={() => setPendingAction(null)}
-            style={{
-              padding: '6px 16px', background: '#f1f5f9', color: '#374151',
-              border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', fontSize: 13,
-            }}
-          >
-            Go back
+            Scarta e continua
           </button>
         </div>
       </div>
@@ -57,83 +41,56 @@ export default function App() {
   const [pickerMode, setPickerMode] = useState<PickerMode>(null);
   const [error, setError] = useState('');
 
-  // Warn on page refresh
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
+      if (isDirty) { e.preventDefault(); e.returnValue = ''; }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  // Restore last project on mount
   useEffect(() => {
-    const loadLastProject = async () => {
+    const load = async () => {
       try {
-        const lastProjectPath = localStorage.getItem('lastProjectPath');
-        const lastModuleName = localStorage.getItem('lastModuleName');
-        
-        if (lastProjectPath) {
-          const proj = await api.openProject(lastProjectPath);
-          setProject(proj);
-          
-          if (lastModuleName) {
-            const plan = await api.getPlan(proj.project_path, lastModuleName);
-            const mod = proj.modules.find((m) => m.name === lastModuleName);
-            if (mod) {
-              setActiveModule(mod);
-              setPlan(plan);
-            }
-          }
+        const lastPath = localStorage.getItem('lastProjectPath');
+        const lastModule = localStorage.getItem('lastModuleName');
+        if (!lastPath) return;
+        const proj = await api.openProject(lastPath);
+        setProject(proj);
+        if (lastModule) {
+          const plan = await api.getPlan(proj.project_path, lastModule);
+          const mod = proj.modules.find((m) => m.name === lastModule);
+          if (mod) { setActiveModule(mod); setPlan(plan); }
         }
-      } catch (e) {
-        // If restore fails, clear the stored data
+      } catch {
         localStorage.removeItem('lastProjectPath');
         localStorage.removeItem('lastModuleName');
       }
     };
-    
-    loadLastProject();
+    load();
   }, []);
 
-  // Save last project path
   useEffect(() => {
-    if (project) {
-      localStorage.setItem('lastProjectPath', project.project_path);
-    }
+    if (project) localStorage.setItem('lastProjectPath', project.project_path);
   }, [project?.project_path]);
 
-  // Save last module name
   useEffect(() => {
-    if (activeModule) {
-      localStorage.setItem('lastModuleName', activeModule.name);
-    }
+    if (activeModule) localStorage.setItem('lastModuleName', activeModule.name);
   }, [activeModule?.name]);
+
+  const guard = (fn: () => void) => { if (isDirty) setPendingAction(() => fn); else fn(); };
 
   const handleOpenProject = async (path: string) => {
     setError('');
-    try {
-      const proj = await api.openProject(path);
-      setProject(proj);
-      setPickerMode(null);
-    } catch (e: any) {
-      setError(e.message);
-    }
+    try { const proj = await api.openProject(path); setProject(proj); setPickerMode(null); }
+    catch (e: any) { setError(e.message); }
   };
 
   const handleCreateProject = async (path: string, name?: string) => {
     if (!name) return;
     setError('');
-    try {
-      const proj = await api.createProject(path, name);
-      setProject(proj);
-      setPickerMode(null);
-    } catch (e: any) {
-      setError(e.message);
-    }
+    try { const proj = await api.createProject(path, name); setProject(proj); setPickerMode(null); }
+    catch (e: any) { setError(e.message); }
   };
 
   const handleSelectModule = async (moduleName: string) => {
@@ -141,74 +98,34 @@ export default function App() {
     try {
       const plan = await api.getPlan(project.project_path, moduleName);
       const mod = project.modules.find((m) => m.name === moduleName)!;
-      setActiveModule(mod);
-      setPlan(plan);
-    } catch (e: any) {
-      setError(e.message);
-    }
+      setActiveModule(mod); setPlan(plan);
+    } catch (e: any) { setError(e.message); }
   };
 
-  const handlePickerConfirm = (path: string, name?: string) => {
-    if (pickerMode === 'open') handleOpenProject(path);
-    else if (pickerMode === 'create') handleCreateProject(path, name);
+  const closeProject = () => {
+    setProject(null); setActiveModule(null);
+    localStorage.removeItem('lastProjectPath');
+    localStorage.removeItem('lastModuleName');
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", background: '#f2f4ef' }}>
       {/* Top bar */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '0 16px', height: 40, background: '#0f172a',
-        borderBottom: '1px solid #1e293b', flexShrink: 0,
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: '0 20px', height: 48, background: '#fff',
+        borderBottom: '1px solid #e3e6df', flexShrink: 0,
       }}>
-        <span style={{ fontSize: 14, fontWeight: 800, color: '#60a5fa', letterSpacing: -0.5 }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: '#111827', letterSpacing: -0.3, marginRight: 20 }}>
           SitePainter
         </span>
-        <span style={{ fontSize: 11, color: '#334155', marginRight: 12 }}>Infinity Design Painter</span>
-        <button
-          onClick={() => {
-            if (isDirty) {
-              setPendingAction(() => () => setPickerMode('open'));
-            } else {
-              setPickerMode('open');
-            }
-          }}
-          style={menuBtn}
-        >
-          📂 Open project
-        </button>
-        <button
-          onClick={() => {
-            if (isDirty) {
-              setPendingAction(() => () => setPickerMode('create'));
-            } else {
-              setPickerMode('create');
-            }
-          }}
-          style={menuBtn}
-        >
-          ✨ New project
-        </button>
-        <button
-          onClick={() => {
-            if (isDirty) {
-              setPendingAction(() => () => {
-                setProject(null);
-                setActiveModule(null);
-                localStorage.removeItem('lastProjectPath');
-                localStorage.removeItem('lastModuleName');
-              });
-            } else {
-              setProject(null);
-              setActiveModule(null);
-              localStorage.removeItem('lastProjectPath');
-              localStorage.removeItem('lastModuleName');
-            }
-          }}
-          style={menuBtn}
-        >
-          ✕ Close project
-        </button>
+        <button onClick={() => guard(() => setPickerMode('open'))} style={topBtn}>Open Project</button>
+        <button onClick={() => guard(() => setPickerMode('create'))} style={topBtn}>New Project</button>
+        {project && (
+          <button onClick={() => guard(closeProject)} style={{ ...topBtn, color: '#dc2626' }}>
+            Close Project
+          </button>
+        )}
       </div>
 
       {/* Main area */}
@@ -219,53 +136,56 @@ export default function App() {
             <Canvas />
           </>
         ) : (
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: '#f8fafc', flexDirection: 'column', gap: 16,
-          }}>
-            <div style={{ fontSize: 48 }}>🗂️</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>
-              SitePainter Clone
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>SitePainter</div>
+            <div style={{ fontSize: 13, color: '#9ca3af' }}>Apri un progetto esistente o creane uno nuovo</div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+              <button onClick={() => setPickerMode('open')} style={bigBtn('#111827')}>Apri progetto</button>
+              <button onClick={() => setPickerMode('create')} style={bigBtn('#16a34a')}>Nuovo progetto</button>
             </div>
-            <div style={{ fontSize: 14, color: '#64748b' }}>
-              Open an existing project or create a new one
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-              <button onClick={() => setPickerMode('open')} style={bigBtn('#2563eb')}>
-                📂 Open project
-              </button>
-              <button onClick={() => setPickerMode('create')} style={bigBtn('#16a34a')}>
-                ✨ Create project
-              </button>
-            </div>
-            {error && (
-              <div style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{error}</div>
-            )}
+            {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
           </div>
         )}
       </div>
 
-      {/* Folder picker dialog */}
       {pickerMode && (
         <FolderPicker
           mode={pickerMode}
-          onSelect={handlePickerConfirm}
+          onSelect={(path, name) => {
+            if (pickerMode === 'open') handleOpenProject(path);
+            else handleCreateProject(path, name);
+          }}
           onClose={() => setPickerMode(null)}
         />
       )}
 
-      {/* Unsaved changes modal */}
       <UnsavedChangesModal />
     </div>
   );
 }
 
-const menuBtn: React.CSSProperties = {
-  padding: '4px 10px', background: '#1e293b', border: '1px solid #334155',
-  color: '#94a3b8', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
+const overlay: React.CSSProperties = {
+  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000,
+};
+
+const topBtn: React.CSSProperties = {
+  padding: '5px 12px', background: 'none', border: 'none',
+  color: '#374151', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
+  borderRadius: 6,
+};
+
+const btnOutline: React.CSSProperties = {
+  padding: '6px 16px', background: '#fff', border: '1px solid #e3e6df',
+  color: '#374151', cursor: 'pointer', fontSize: 13, borderRadius: 6, fontFamily: 'inherit',
+};
+
+const btnDanger: React.CSSProperties = {
+  padding: '6px 16px', background: '#dc2626', border: 'none',
+  color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, borderRadius: 6, fontFamily: 'inherit',
 };
 
 const bigBtn = (bg: string): React.CSSProperties => ({
   padding: '10px 24px', background: bg, color: '#fff', border: 'none',
-  borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600,
+  borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
 });
