@@ -5,7 +5,11 @@
       "Bash(npx tsc *)",
       "mcp__plugin_playwright_playwright__browser_navigate",
       "mcp__plugin_playwright_playwright__browser_take_screenshot",
-      "mcp__plugin_playwright_playwright__browser_evaluate"
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\tiziano.murzio\\\\Documents\\\\src\\\\plan_designer\\\\frontend\\\\src\" -Recurse -Filter \"*.tsx\")",
+      "Bash(Select-Object FullName)",
+      "Bash(find /tmp -name \"video-start.png\")",
+      "Read(//c/Users/tiziano.murzio/**)"
     ]
   }
 }

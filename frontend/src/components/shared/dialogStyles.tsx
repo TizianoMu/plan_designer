@@ -5,7 +5,7 @@ export const overlay: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
 };
 export const dialog: React.CSSProperties = {
-  background: '#fff', borderRadius: 8, width: 760, maxHeight: '90vh',
+  background: '#fff', borderRadius: 8, width: 760, height: 560, maxHeight: '90vh',
   display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
 };
 export const titleBar: React.CSSProperties = {

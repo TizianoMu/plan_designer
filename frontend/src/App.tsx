@@ -108,6 +108,12 @@ export default function App() {
     localStorage.removeItem('lastModuleName');
   };
 
+  const handleGoToRoot = () => {
+    setActiveModule(null);
+    setPlan(null);
+    localStorage.removeItem('lastModuleName');
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", background: '#f2f4ef' }}>
       {/* Top bar */}
@@ -132,7 +138,7 @@ export default function App() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {project ? (
           <>
-            <Sidebar onModuleSelect={handleSelectModule} />
+            <Sidebar onModuleSelect={handleSelectModule} onGoToRoot={handleGoToRoot} />
             <Canvas />
           </>
         ) : (

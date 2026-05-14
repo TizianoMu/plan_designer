@@ -12,6 +12,7 @@ export function FolderPicker({ mode, onSelect, onClose }: Props) {
   const [entries, setEntries] = useState<{ name: string; path: string; is_project: boolean }[]>([]);
   const [parent, setParent] = useState('');
   const [newName, setNewName] = useState('');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,7 +20,7 @@ export function FolderPicker({ mode, onSelect, onClose }: Props) {
     setLoading(true); setError('');
     try {
       const res = await api.browse(path);
-      setCurrentPath(res.path); setParent(res.parent); setEntries(res.entries);
+      setCurrentPath(res.path); setParent(res.parent); setEntries(res.entries); setSearch('');
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -57,6 +58,34 @@ export function FolderPicker({ mode, onSelect, onClose }: Props) {
             {currentPath || 'Caricamento…'}
           </div>
 
+          {/* Search */}
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <span style={{
+              position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)',
+              fontSize: 13, color: '#9ca3af', pointerEvents: 'none',
+            }}>🔍</span>
+            <input
+              style={{
+                width: '100%', padding: '7px 10px 7px 30px', border: '1px solid #e3e6df',
+                borderRadius: 6, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box',
+                outline: 'none', color: '#111827', background: '#fff',
+              }}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filtra cartelle…"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                style={{
+                  position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 14,
+                  color: '#9ca3af', lineHeight: 1, padding: 0,
+                }}
+              >×</button>
+            )}
+          </div>
+
           {/* File list */}
           <div style={{
             border: '1px solid #e3e6df', borderRadius: 6, height: 250,
@@ -64,38 +93,52 @@ export function FolderPicker({ mode, onSelect, onClose }: Props) {
           }}>
             {loading ? (
               <div style={{ padding: 16, color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>Caricamento…</div>
-            ) : (
-              <>
-                {parent && parent !== currentPath && (
-                  <button onClick={() => load(parent)} style={entryStyle(false)}>
-                    <span style={{ color: '#9ca3af', marginRight: 6 }}>↑</span> Cartella superiore
-                  </button>
-                )}
-                {entries.map((e) => (
-                  <button
-                    key={e.path}
-                    onDoubleClick={() => load(e.path)}
-                    onClick={() => setCurrentPath(e.path)}
-                    style={{
-                      ...entryStyle(currentPath === e.path),
-                    }}
-                  >
-                    <span style={{ flex: 1 }}>{e.name}</span>
-                    {e.is_project && (
+            ) : (() => {
+              const filtered = search
+                ? entries.filter((e) => e.name.toLowerCase().includes(search.toLowerCase()))
+                : entries;
+              return (
+                <>
+                  {!search && parent && parent !== currentPath && (
+                    <button onClick={() => load(parent)} style={entryStyle(false)}>
+                      <span style={{ fontSize: 16, marginRight: 8, lineHeight: 1, color: '#9ca3af', flexShrink: 0 }}>⬆️</span>
+                      <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Cartella superiore</span>
+                    </button>
+                  )}
+                  {filtered.map((e) => (
+                    <button
+                      key={e.path}
+                      onDoubleClick={() => load(e.path)}
+                      onClick={() => setCurrentPath(e.path)}
+                      style={entryStyle(currentPath === e.path, e.is_project)}
+                    >
                       <span style={{
-                        fontSize: 10, color: '#16a34a', fontWeight: 700,
-                        background: '#f0fdf4', padding: '1px 6px', borderRadius: 10,
+                        fontSize: 16, marginRight: 8, lineHeight: 1,
+                        color: e.is_project ? '#16a34a' : '#6b7280',
+                        flexShrink: 0,
                       }}>
-                        PROGETTO
+                        {e.is_project ? '📂' : '📁'}
                       </span>
-                    )}
-                  </button>
-                ))}
-                {entries.length === 0 && !loading && (
-                  <div style={{ padding: 16, color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>Cartella vuota</div>
-                )}
-              </>
-            )}
+                      <span style={{ flex: 1 }}>{e.name}</span>
+                      {e.is_project && (
+                        <span style={{
+                          fontSize: 10, color: '#16a34a', fontWeight: 700,
+                          background: '#dcfce7', padding: '2px 7px', borderRadius: 10,
+                          border: '1px solid #bbf7d0', flexShrink: 0,
+                        }}>
+                          PROGETTO
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                  {filtered.length === 0 && (
+                    <div style={{ padding: 16, color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>
+                      {search ? `Nessuna cartella trovata per "${search}"` : 'Cartella vuota'}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {mode === 'create' && (
@@ -157,12 +200,14 @@ const footerStyle: React.CSSProperties = {
   padding: '12px 16px', borderTop: '1px solid #f3f4f6',
   display: 'flex', justifyContent: 'flex-end', gap: 8,
 };
-const entryStyle = (active: boolean): React.CSSProperties => ({
+const entryStyle = (active: boolean, isProject = false): React.CSSProperties => ({
   display: 'flex', alignItems: 'center', width: '100%',
-  padding: '8px 12px', background: active ? '#f0fdf4' : 'none', border: 'none',
-  cursor: 'pointer', fontSize: 13, fontFamily: 'monospace', textAlign: 'left',
-  color: active ? '#15803d' : '#374151', fontWeight: active ? 600 : 400,
-  borderLeft: active ? '3px solid #16a34a' : '3px solid transparent',
+  padding: '8px 12px', border: 'none', cursor: 'pointer',
+  fontSize: 13, fontFamily: 'monospace', textAlign: 'left',
+  background: active ? '#f0fdf4' : isProject ? '#f9fefb' : 'none',
+  color: active ? '#15803d' : '#374151',
+  fontWeight: active ? 600 : isProject ? 500 : 400,
+  borderLeft: active ? '3px solid #16a34a' : isProject ? '3px solid #86efac' : '3px solid transparent',
 });
 const btnPrimary: React.CSSProperties = {
   padding: '7px 20px', background: '#16a34a', color: '#fff', border: 'none',

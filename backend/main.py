@@ -34,6 +34,17 @@ class SavePlanRequest(BaseModel):
     module_name: str
     plan: dict
 
+class GeneratedFileItem(BaseModel):
+    path: str      # relative to module folder, e.g. "generated/jkr_foo/jkr_foo.list.json"
+    filename: str
+    content: str
+    type: str      # "json" | "js" | "sql"
+
+class GeneratePrototypeRequest(BaseModel):
+    project_path: str
+    module_name: str
+    files: List[GeneratedFileItem]
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_module_path(project_path: str, module_name: str) -> str:
@@ -115,6 +126,29 @@ def save_plan(req: SavePlanRequest):
     with open(plan_path, "w", encoding="utf-8") as f:
         json.dump(req.plan, f, indent=2, ensure_ascii=False)
     return {"status": "saved"}
+
+@app.post("/module/prototype/generate")
+def generate_prototype(req: GeneratePrototypeRequest):
+    """Write prototype-generated files to disk under {module}/generated/{program}/."""
+    module_path = get_module_path(req.project_path, req.module_name)
+    if not os.path.isdir(module_path):
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    written = []
+    for item in req.files:
+        # Prevent path traversal
+        safe_path = os.path.normpath(item.path).lstrip(os.sep).lstrip("/")
+        if safe_path.startswith(".."):
+            raise HTTPException(status_code=400, detail=f"Invalid path: {item.path}")
+
+        full_path = os.path.join(module_path, safe_path)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(item.content)
+        written.append(safe_path)
+
+    return {"status": "generated", "files": written}
+
 
 @app.get("/browse")
 def browse_directory(path: str = ""):

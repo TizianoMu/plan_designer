@@ -146,7 +146,7 @@ export function CanvasToolbar({
         }}
         title="Salva e genera schema SQL"
       >
-        {saving ? '…' : 'Salva & SQL'}
+        {saving ? '…' : 'Salva & genera'}
       </button>
     </div>
   );

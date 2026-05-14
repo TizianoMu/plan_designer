@@ -18,9 +18,9 @@ interface AppState {
   selectedEntityIds: string[]; // Multiple selection
 
   // Actions
-  setProject: (p: Project) => void;
-  setActiveModule: (m: Module) => void;
-  setPlan: (plan: Plan) => void;
+  setProject: (p: Project | null) => void;
+  setActiveModule: (m: Module | null) => void;
+  setPlan: (plan: Plan | null) => void;
   markDirty: () => void;
   markClean: () => void;
   setPendingAction: (fn: (() => void) | null) => void;

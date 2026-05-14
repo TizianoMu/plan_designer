@@ -22,6 +22,7 @@ import { RelationDialog } from '../dialogs/RelationDialog';
 import { StickyNoteDialog } from '../dialogs/StickyNoteDialog';
 import { SqlPreviewDialog } from '../dialogs/SqlPreviewDialog';
 import { generateSql } from '../../utils/generateSql';
+import { generateAllPrototypes } from '../../utils/generatePrototype';
 
 const nodeTypes = { entityNode: EntityNode, stickyNode: StickyNode };
 
@@ -221,6 +222,12 @@ export function Canvas() {
       await api.savePlan(project.project_path, activeModule.name, plan);
       markClean();
       setSqlOutput(generateSql(plan));
+
+      const prototypes = generateAllPrototypes(plan);
+      if (prototypes.length > 0) {
+        const allFiles = prototypes.flatMap((p) => p.files);
+        await api.generatePrototype(project.project_path, activeModule.name, allFiles);
+      }
     } catch (e: any) {
       alert('Save error: ' + e.message);
     } finally {
@@ -462,6 +469,8 @@ export function Canvas() {
           onPaneContextMenu={handleCanvasContextMenu}
           nodeTypes={nodeTypes}
           fitView
+          fitViewOptions={{ maxZoom: 0.8, padding: 0.3 }}
+          minZoom={0.1}
           deleteKeyCode={['Delete', 'Backspace']}
           onEdgesDelete={(deleted: Edge[]) => {
             takeSnapshot();
@@ -474,7 +483,7 @@ export function Canvas() {
           <MiniMap
             nodeColor={(n: any) => {
               const type = n.data?.entity?.type;
-              return type === 'master' ? '#16a34a' : type === 'detail' ? '#2563eb' : '#94a3b8';
+              return type === 'master' ? '#16a34a' : type === 'detail' ? '#2563eb' : type === 'external' ? '#d97706' : type === 'virtual' ? '#7c3aed' : '#94a3b8';
             }}
           />
         </ReactFlow>

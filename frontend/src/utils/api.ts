@@ -1,4 +1,5 @@
 import type { Plan, Project, Module } from '../types';
+import type { GeneratedFile } from './generatePrototype';
 
 const BASE = 'http://localhost:8000';
 
@@ -44,4 +45,14 @@ export const api = {
 
   browse: (path: string = ''): Promise<{ path: string; parent: string; entries: { name: string; path: string; is_project: boolean }[] }> =>
     request(`/browse?path=${encodeURIComponent(path)}`),
+
+  generatePrototype: (
+    project_path: string,
+    module_name: string,
+    files: GeneratedFile[],
+  ): Promise<{ status: string; files: string[] }> =>
+    request('/module/prototype/generate', {
+      method: 'POST',
+      body: JSON.stringify({ project_path, module_name, files }),
+    }),
 };

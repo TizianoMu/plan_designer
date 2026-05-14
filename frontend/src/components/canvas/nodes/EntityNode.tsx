@@ -6,12 +6,16 @@ import { validateEntity } from '../../../utils/validation';
 
 interface EntityNodeData { entity: Entity }
 
-const TYPE_STYLE: Record<string, { accent: string; label: string }> = {
-  master:   { accent: '#16a34a', label: 'Master'   },
-  detail:   { accent: '#2563eb', label: 'Detail'   },
-  external: { accent: '#d97706', label: 'External' },
-  virtual:  { accent: '#7c3aed', label: 'Virtual'  },
+const TYPE_STYLE: Record<string, { accent: string; label: string; bg: string }> = {
+  master:   { accent: '#16a34a', label: 'M', bg: '#dcfce7' },
+  detail:   { accent: '#2563eb', label: 'D', bg: '#dbeafe' },
+  external: { accent: '#d97706', label: 'E', bg: '#fef3c7' },
+  virtual:  { accent: '#7c3aed', label: 'V', bg: '#ede9fe' },
 };
+
+const CARD_W = 72;
+const CARD_H = 58;
+const LABEL_H = 22;
 
 export const EntityNode = memo(({ data, selected }: NodeProps) => {
   const entity = (data as unknown as EntityNodeData).entity;
@@ -50,8 +54,7 @@ export const EntityNode = memo(({ data, selected }: NodeProps) => {
   }, [entity.id, pendingRelation]);
 
   const isPendingTarget = pendingRelation && pendingRelation.sourceId !== entity.id;
-  const borderColor = isInvalid ? '#dc2626' : selected || isPendingTarget ? '#f59e0b' : style.accent;
-  const fields = entity.fields ?? [];
+  const borderColor = isInvalid ? '#dc2626' : selected || isPendingTarget ? '#f59e0b' : '#374151';
 
   return (
     <div
@@ -59,77 +62,97 @@ export const EntityNode = memo(({ data, selected }: NodeProps) => {
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       style={{
-        background: '#fff',
-        border: `1px solid ${borderColor}`,
-        borderTop: `3px solid ${borderColor}`,
-        borderRadius: 8,
-        minWidth: 170,
-        cursor: isPendingTarget ? 'crosshair' : 'default',
-        boxShadow: selected
-          ? `0 0 0 3px ${borderColor}30`
-          : '0 1px 4px rgba(0,0,0,0.08)',
+        position: 'relative',
+        width: CARD_W,
+        paddingTop: LABEL_H,
         fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
         userSelect: 'none',
-        overflow: 'hidden',
+        overflow: 'visible',
+        cursor: isPendingTarget ? 'crosshair' : 'default',
       }}
     >
-      {/* Header */}
-      <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid #f3f4f6' }}>
-        <span style={{
-          fontSize: 9, fontWeight: 700, color: style.accent,
-          textTransform: 'uppercase', letterSpacing: 1,
-        }}>
-          {style.label}
-        </span>
-        {entity.program && (
-          <span style={{ fontSize: 9, color: '#9ca3af', fontFamily: 'monospace', marginLeft: 'auto' }}>
-            {entity.program}
-          </span>
+      {/* Name label above card */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        height: LABEL_H,
+        display: 'flex',
+        alignItems: 'flex-end',
+        paddingBottom: 3,
+        color: style.accent,
+        fontSize: 11,
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+        overflow: 'visible',
+        lineHeight: 1,
+      }}>
+        {entity.name || <span style={{ color: '#d1d5db', fontStyle: 'italic', fontWeight: 400 }}>Senza nome</span>}
+        {entity.isPrototype && (
+          <span title="Prototype" style={{ marginLeft: 4, fontSize: 10, lineHeight: 1 }}>⚙</span>
         )}
         {isInvalid && (
           <span title={tooltip} style={{
-            fontSize: 9, fontWeight: 700, color: '#dc2626',
-            background: '#fef2f2', padding: '1px 4px', borderRadius: 3, cursor: 'help',
-          }}>
-            ERR
+            marginLeft: 4, fontSize: 10, color: '#dc2626', cursor: 'help',
+          }}>⚠</span>
+        )}
+      </div>
+
+      {/* Card */}
+      <div style={{
+        width: CARD_W,
+        height: CARD_H,
+        background: '#fff',
+        border: `1.5px solid ${borderColor}`,
+        borderRadius: 4,
+        boxShadow: selected
+          ? `0 0 0 3px ${style.accent}40`
+          : '0 1px 5px rgba(0,0,0,0.14)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        {/* Accent header */}
+        <div style={{
+          background: style.accent,
+          height: 20,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 6px',
+        }}>
+          <span style={{ fontSize: 9, color: '#fff', fontWeight: 800, letterSpacing: 0.5 }}>
+            {entity.type?.toUpperCase()}
           </span>
-        )}
-      </div>
+        </div>
 
-      {/* Entity name */}
-      <div style={{ padding: '6px 10px 4px', fontWeight: 600, fontSize: 13, color: '#111827' }}>
-        {entity.name || <span style={{ color: '#d1d5db', fontStyle: 'italic', fontWeight: 400 }}>Senza nome</span>}
-      </div>
-
-      {/* Fields */}
-      <div style={{ padding: '2px 10px 8px' }}>
-        {fields.slice(0, 4).map((f) => (
-          <div key={f.id} style={{ display: 'flex', gap: 8, fontSize: 11, color: '#6b7280', lineHeight: '17px', alignItems: 'center' }}>
-            <span style={{ color: style.accent, fontWeight: 700, fontFamily: 'monospace', minWidth: 12, fontSize: 10 }}>
-              {f.type}
-            </span>
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {f.name}
-            </span>
-            {f.key === 1 && (
-              <span style={{ fontSize: 9, fontWeight: 700, color: '#d97706', background: '#fef3c7', padding: '0 3px', borderRadius: 3 }}>
-                PK
-              </span>
-            )}
-          </div>
-        ))}
-        {fields.length > 4 && (
-          <div style={{ fontSize: 10, color: '#d1d5db', marginTop: 2 }}>+{fields.length - 4} altri</div>
-        )}
-        {fields.length === 0 && (
-          <div style={{ fontSize: 11, color: '#d1d5db', fontStyle: 'italic' }}>Nessun campo</div>
-        )}
+        {/* Icon body: rows simulating a table */}
+        <div style={{ flex: 1, background: style.bg, padding: '5px 6px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {[14, 10, 10, 10].map((w, i) => (
+            <div key={i} style={{
+              height: 3,
+              width: `${w * 5}%`,
+              background: style.accent,
+              opacity: i === 0 ? 0.7 : 0.25,
+              borderRadius: 2,
+            }} />
+          ))}
+        </div>
       </div>
 
       <Handle type="source" position={Position.Right}
-        style={{ background: style.accent, width: 8, height: 8, border: '2px solid #fff' }} />
+        style={{
+          background: style.accent, width: 7, height: 7, border: '2px solid #fff',
+          top: LABEL_H + CARD_H / 2,
+        }}
+      />
       <Handle type="target" position={Position.Left}
-        style={{ background: style.accent, width: 8, height: 8, border: '2px solid #fff' }} />
+        style={{
+          background: style.accent, width: 7, height: 7, border: '2px solid #fff',
+          top: LABEL_H + CARD_H / 2,
+        }}
+      />
     </div>
   );
 });
