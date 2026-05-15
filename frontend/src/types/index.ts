@@ -131,6 +131,7 @@ export interface Plan {
   entities: Entity[];
   relations: Relation[];
   notes: StickyNote[];
+  prototypeLayouts?: PrototypeLayout[]; // visual layer only, separate from entity schema
 }
 
 export interface Module {
@@ -154,3 +155,55 @@ export interface ContextMenu {
 }
 
 export type DialogMode = 'create' | 'edit';
+
+// ── Editor Tabs ───────────────────────────────────────────────────────────────
+
+export type EditorTabType = 'plan' | 'form';
+
+export interface EditorTab {
+  id: string;
+  type: EditorTabType;
+  entityId?: string; // only for form tabs
+  label: string;
+}
+
+// ── Prototype Layout (visual layer — never touches DB schema) ─────────────────
+
+export type ProtoComponentType = 'field' | 'label' | 'separator' | 'image' | 'button';
+
+export interface ProtoComponentStyle {
+  fontSize?: number;
+  fontWeight?: 'normal' | 'bold';
+  color?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderRadius?: number;
+  textAlign?: 'left' | 'center' | 'right';
+}
+
+export interface ProtoComponent {
+  id: string;
+  type: ProtoComponentType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  // 'field' binding — read-only reference, never alters Entity.fields
+  fieldName?: string;
+  label?: string;
+  text?: string;
+  placeholder?: string;
+  required?: boolean;
+  visible?: boolean;
+  readonly?: boolean;
+  style?: ProtoComponentStyle;
+}
+
+export interface PrototypeLayout {
+  entityId: string;
+  canvasWidth: number;
+  canvasHeight: number;
+  snapToGrid: boolean;
+  gridSize: number;
+  components: ProtoComponent[];
+}

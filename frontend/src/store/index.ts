@@ -1,6 +1,8 @@
 import { create } from 'zustand';
-import type { Project, Module, Plan, Entity, Relation, ContextMenu, StickyNote } from '../types';
+import type { Project, Module, Plan, Entity, Relation, ContextMenu, StickyNote, EditorTab, ProtoComponent, PrototypeLayout } from '../types';
 import { genId, today } from '../utils/helpers';
+
+const PLAN_TAB: EditorTab = { id: 'plan', type: 'plan', label: 'Plan' };
 
 interface AppState {
   project: Project | null;
@@ -17,6 +19,10 @@ interface AppState {
   selectedEntityId: string | null;
   selectedEntityIds: string[]; // Multiple selection
 
+  // Editor tabs
+  tabs: EditorTab[];
+  activeTabId: string;
+
   // Actions
   setProject: (p: Project | null) => void;
   setActiveModule: (m: Module | null) => void;
@@ -24,6 +30,10 @@ interface AppState {
   markDirty: () => void;
   markClean: () => void;
   setPendingAction: (fn: (() => void) | null) => void;
+
+  openFormTab: (entity: Entity) => void;
+  closeTab: (tabId: string) => void;
+  setActiveTab: (tabId: string) => void;
 
   upsertEntity: (entity: Entity) => void;
   deleteEntity: (id: string) => void;
@@ -41,6 +51,12 @@ interface AppState {
   setSelectedEntityId: (id: string | null) => void;
   toggleSelectedEntity: (id: string) => void;
   clearSelectedEntities: () => void;
+
+  // Prototype layout actions (visual layer only — never touch entity schema)
+  upsertProtoComponent: (entityId: string, component: ProtoComponent) => void;
+  deleteProtoComponent: (entityId: string, componentId: string) => void;
+  updateProtoLayout: (layout: PrototypeLayout) => void;
+  getProtoLayout: (entityId: string) => PrototypeLayout | undefined;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -53,13 +69,40 @@ export const useStore = create<AppState>((set, get) => ({
   contextMenu: null,
   selectedEntityId: null,
   selectedEntityIds: [],
+  tabs: [PLAN_TAB],
+  activeTabId: 'plan',
 
   setProject: (p) => set({ project: p }),
   setActiveModule: (m) => set({ activeModule: m }),
-  setPlan: (plan) => set({ plan, isDirty: false }),
+  setPlan: (plan) => set({ plan, isDirty: false, tabs: [PLAN_TAB], activeTabId: 'plan' }),
   markDirty: () => set({ isDirty: true }),
   markClean: () => set({ isDirty: false }),
   setPendingAction: (fn) => set({ pendingAction: fn }),
+
+  openFormTab: (entity) =>
+    set((s) => {
+      const existingTab = s.tabs.find((t) => t.entityId === entity.id);
+      if (existingTab) return { activeTabId: existingTab.id };
+      const newTab: EditorTab = {
+        id: `form-${entity.id}`,
+        type: 'form',
+        entityId: entity.id,
+        label: entity.name || entity.program,
+      };
+      return { tabs: [...s.tabs, newTab], activeTabId: newTab.id };
+    }),
+
+  closeTab: (tabId) =>
+    set((s) => {
+      if (tabId === 'plan') return {};
+      const newTabs = s.tabs.filter((t) => t.id !== tabId);
+      const newActiveId = s.activeTabId === tabId
+        ? (newTabs[newTabs.length - 1]?.id ?? 'plan')
+        : s.activeTabId;
+      return { tabs: newTabs, activeTabId: newActiveId };
+    }),
+
+  setActiveTab: (tabId) => set({ activeTabId: tabId }),
 
   upsertEntity: (entity) =>
     set((s) => {
@@ -179,4 +222,47 @@ export const useStore = create<AppState>((set, get) => ({
     }),
 
   clearSelectedEntities: () => set({ selectedEntityIds: [], selectedEntityId: null }),
+
+  upsertProtoComponent: (entityId, component) =>
+    set((s) => {
+      if (!s.plan) return {};
+      const layouts = s.plan.prototypeLayouts ?? [];
+      const existing = layouts.find((l) => l.entityId === entityId);
+      const updatedLayout: PrototypeLayout = existing
+        ? {
+            ...existing,
+            components: existing.components.find((c) => c.id === component.id)
+              ? existing.components.map((c) => (c.id === component.id ? component : c))
+              : [...existing.components, component],
+          }
+        : { entityId, canvasWidth: 1200, canvasHeight: 800, snapToGrid: true, gridSize: 8, components: [component] };
+      const prototypeLayouts = existing
+        ? layouts.map((l) => (l.entityId === entityId ? updatedLayout : l))
+        : [...layouts, updatedLayout];
+      return { plan: { ...s.plan, prototypeLayouts }, isDirty: true };
+    }),
+
+  deleteProtoComponent: (entityId, componentId) =>
+    set((s) => {
+      if (!s.plan) return {};
+      const layouts = (s.plan.prototypeLayouts ?? []).map((l) =>
+        l.entityId === entityId
+          ? { ...l, components: l.components.filter((c) => c.id !== componentId) }
+          : l
+      );
+      return { plan: { ...s.plan, prototypeLayouts: layouts }, isDirty: true };
+    }),
+
+  updateProtoLayout: (layout) =>
+    set((s) => {
+      if (!s.plan) return {};
+      const layouts = s.plan.prototypeLayouts ?? [];
+      const exists = layouts.find((l) => l.entityId === layout.entityId);
+      const prototypeLayouts = exists
+        ? layouts.map((l) => (l.entityId === layout.entityId ? layout : l))
+        : [...layouts, layout];
+      return { plan: { ...s.plan, prototypeLayouts }, isDirty: true };
+    }),
+
+  getProtoLayout: (entityId) => get().plan?.prototypeLayouts?.find((l) => l.entityId === entityId),
 }));

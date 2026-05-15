@@ -9,7 +9,22 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\tiziano.murzio\\\\Documents\\\\src\\\\plan_designer\\\\frontend\\\\src\" -Recurse -Filter \"*.tsx\")",
       "Bash(Select-Object FullName)",
       "Bash(find /tmp -name \"video-start.png\")",
-      "Read(//c/Users/tiziano.murzio/**)"
+      "Read(//c/Users/tiziano.murzio/**)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\tiziano.murzio\\\\Documents\\\\src\\\\plan_designer\\\\frontend\\\\src\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(start /B uvicorn main:app --reload --port 8000)",
+      "Bash(npm run *)",
+      "Bash(uvicorn main:app --reload --port 8000)",
+      "Bash(dir \"C:\\\\Users\\\\tiziano.murzio\\\\Documents\\\\src\" /B)",
+      "Bash(python *)",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "Bash(curl -s http://localhost:8000/docs)",
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_handle_dialog"
     ]
   }
 }

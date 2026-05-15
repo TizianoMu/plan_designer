@@ -25,25 +25,9 @@ const TYPE_COLOR: Record<Entity['type'], string> = {
   virtual:  '#7c3aed',
 };
 
-/** Returns the 4 generated file names for a prototype entity */
-function protoFiles(program: string): { filename: string; type: 'html' | 'css' | 'js' | 'py' }[] {
-  return [
-    { filename: `${program}.html`,   type: 'html' },
-    { filename: `${program}.css`,    type: 'css'  },
-    { filename: `${program}.js`,     type: 'js'   },
-    { filename: `${program}.api.py`, type: 'py'   },
-  ];
-}
-
-const FILE_TYPE_COLOR: Record<string, string> = {
-  html: '#16a34a',
-  css:  '#7c3aed',
-  js:   '#d97706',
-  py:   '#2563eb',
-};
 
 export function Sidebar({ onModuleSelect, onGoToRoot }: Props) {
-  const { project, activeModule, plan, isDirty, setPendingAction, setSelectedEntityId } = useStore();
+  const { project, activeModule, plan, isDirty, setPendingAction, setSelectedEntityId, openFormTab } = useStore();
   const [tab, setTab] = useState<Tab>('modules');
   const [filter, setFilter] = useState('');
   const [collapsed, setCollapsed] = useState<Partial<Record<Entity['type'], boolean>>>({});
@@ -77,9 +61,9 @@ export function Sidebar({ onModuleSelect, onGoToRoot }: Props) {
     finally { setLoading(false); }
   };
 
-  const handleEntityClick = (entityId: string) => {
-    setSelectedEntityId(entityId);
-    window.dispatchEvent(new CustomEvent('focusEntity', { detail: { entityId } }));
+  const handleEntityClick = (entity: Entity) => {
+    setSelectedEntityId(entity.id);
+    openFormTab(entity);
   };
 
   if (!project) return null;
@@ -159,14 +143,13 @@ export function Sidebar({ onModuleSelect, onGoToRoot }: Props) {
               </div>
             )}
 
-            {/* Entity groups — only prototype entities */}
+            {/* Entity groups — clean domain-oriented list, no file paths */}
             {ENTITY_TYPE_ORDER.map((type) => {
               const group = grouped[type];
               if (group.length === 0) return null;
               const isCollapsed = !!collapsed[type];
               return (
                 <div key={type}>
-                  {/* Collapsible section header */}
                   <button
                     onClick={() => toggleSection(type)}
                     style={sectionHeaderBtn(TYPE_COLOR[type])}
@@ -176,47 +159,25 @@ export function Sidebar({ onModuleSelect, onGoToRoot }: Props) {
                     <span style={{ fontSize: 9, opacity: 0.7 }}>{isCollapsed ? '▶' : '▼'}</span>
                   </button>
 
-                  {/* Entities + their files */}
-                  {!isCollapsed && group.map((entity) => {
-                    const label = entity.name && entity.name !== entity.program
-                      ? `${entity.program}: ${entity.name}`
-                      : entity.program || entity.name;
-                    const files = protoFiles(entity.program);
-                    return (
-                      <div key={entity.id}>
-                        {/* Entity row */}
-                        <button
-                          onClick={() => handleEntityClick(entity.id)}
-                          style={entityRowStyle(TYPE_COLOR[type])}
-                          title={label}
-                        >
-                          <span style={{ color: TYPE_COLOR[type], marginRight: 5, fontSize: 11 }}>📁</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                            {label}
-                          </span>
-                          <span style={{ fontSize: 9, color: '#9ca3af', flexShrink: 0, marginLeft: 3 }}>⚙</span>
-                        </button>
-
-                        {/* Generated files */}
-                        {files.map((f) => (
-                          <div key={f.filename} style={fileRowStyle}>
-                            <span style={{
-                              fontSize: 8, fontWeight: 700,
-                              color: FILE_TYPE_COLOR[f.type] ?? '#6b7280',
-                              background: `${FILE_TYPE_COLOR[f.type]}18`,
-                              padding: '1px 4px', borderRadius: 2,
-                              marginRight: 5, flexShrink: 0,
-                            }}>
-                              {f.type.toUpperCase()}
-                            </span>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: '#6b7280', fontFamily: 'monospace' }}>
-                              {f.filename}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
+                  {!isCollapsed && group.map((entity) => (
+                    <button
+                      key={entity.id}
+                      onClick={() => handleEntityClick(entity)}
+                      style={entityRowStyle(TYPE_COLOR[type])}
+                      title={`Apri form: ${entity.name || entity.program}`}
+                    >
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: TYPE_COLOR[type], marginRight: 8, flexShrink: 0,
+                      }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontSize: 12 }}>
+                        {entity.name || entity.program}
+                      </span>
+                      <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0, marginLeft: 3 }}>
+                        →
+                      </span>
+                    </button>
+                  ))}
                 </div>
               );
             })}
@@ -353,12 +314,6 @@ const entityRowStyle = (_color: string): React.CSSProperties => ({
   color: '#374151',
 });
 
-const fileRowStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center',
-  padding: '2px 10px 2px 32px',
-  borderLeft: '1px solid #f3f4f6',
-  marginLeft: 24,
-};
 
 const moduleRowStyle = (active: boolean): React.CSSProperties => ({
   display: 'flex', alignItems: 'center', width: '100%',

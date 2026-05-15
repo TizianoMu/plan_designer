@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from './store';
 import { api } from './utils/api';
 import { Sidebar } from './components/layout/Sidebar';
-import { Canvas } from './components/canvas/Canvas';
+import { MainArea } from './components/editor/MainArea';
 import { FolderPicker } from './components/dialogs/FolderPicker';
 
 type PickerMode = 'open' | 'create' | null;
@@ -139,7 +139,7 @@ export default function App() {
         {project ? (
           <>
             <Sidebar onModuleSelect={handleSelectModule} onGoToRoot={handleGoToRoot} />
-            <Canvas />
+            <MainArea />
           </>
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14 }}>
